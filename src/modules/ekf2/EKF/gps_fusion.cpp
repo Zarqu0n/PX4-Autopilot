@@ -72,12 +72,23 @@ void Ekf::updateGpsVel(const gpsSample &gps_sample)
 
 void Ekf::updateGpsPos(const gpsSample &gps_sample)
 {
+	const float height_measurement = gps_sample.hgt;
+	const float height_measurement_var = getGpsHeightVariance();
+
+	// save current bias and update bias estimator
+	const float bias = _gps_hgt_b_est.getBias();
+	const float bias_var = _gps_hgt_b_est.getBiasVar();
+
+	_gps_hgt_b_est.setMaxStateNoise(height_measurement_var);
+	_gps_hgt_b_est.setProcessNoiseStdDev(height_measurement_var); //TODO: update this
+	_gps_hgt_b_est.fuseBias(height_measurement - (-_state.pos(2)), height_measurement_var + P(9, 9));
+
 	Vector3f position;
 	position(0) = gps_sample.pos(0);
 	position(1) = gps_sample.pos(1);
 
 	// vertical position - gps measurement has opposite sign to earth z axis
-	position(2) = -(gps_sample.hgt - getEkfGlobalOriginAltitude() - _gps_hgt_offset);
+	position(2) = -(height_measurement - getEkfGlobalOriginAltitude() - bias);
 
 	const float lower_limit = fmaxf(_params.gps_pos_noise, 0.01f);
 
@@ -95,23 +106,20 @@ void Ekf::updateGpsPos(const gpsSample &gps_sample)
 		obs_var(0) = obs_var(1) = sq(math::constrain(gps_sample.hacc, lower_limit, upper_limit));
 	}
 
-	obs_var(2) = getGpsHeightVariance();
+	obs_var(2) = height_measurement_var + bias_var;
 
 	// innovation gate size
 	float innov_gate = fmaxf(_params.gps_pos_innov_gate, 1.f);
 
 	auto &gps_pos = _aid_src_gnss_pos;
 
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 3; i++) {
 		gps_pos.observation[i] = position(i);
 		gps_pos.observation_variance[i] = obs_var(i);
 
 		gps_pos.innovation[i] = _state.pos(i) - position(i);
 		gps_pos.innovation_variance[i] = P(7 + i, 7 + i) + obs_var(i);
 	}
-
-	gps_pos.innovation[2] = _state.pos(2) + _gps_hgt_b_est.getBias() - position(2);
-	gps_pos.innovation_variance[2] = P(9, 9) + _gps_hgt_b_est.getBiasVar() + obs_var(2);
 
 	setEstimatorAidStatusTestRatio(gps_pos, innov_gate);
 

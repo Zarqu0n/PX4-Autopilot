@@ -256,14 +256,14 @@ void Ekf::resetHeightToBaro()
 	ECL_INFO("reset height to baro");
 	_information_events.flags.reset_hgt_to_baro = true;
 
-	resetVerticalPositionTo(-(_baro_sample_delayed.hgt - _baro_hgt_offset));
+	resetVerticalPositionTo(-(_baro_sample_delayed.hgt - _baro_b_est.getBias()));
 
 	// the state variance is the same as the observation
 	P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.baro_noise));
 
-	_gps_hgt_offset -= _state_reset_status.posD_change;
-	_rng_hgt_offset -= _state_reset_status.posD_change;
-	_ev_hgt_offset -= _state_reset_status.posD_change;
+	_gps_hgt_b_est.setBias(_gps_hgt_b_est.getBias() - _state_reset_status.posD_change);
+	_rng_hgt_b_est.setBias(_rng_hgt_b_est.getBias() - _state_reset_status.posD_change);
+	_ev_hgt_b_est.setBias(_ev_hgt_b_est.getBias() + _state_reset_status.posD_change);
 }
 
 void Ekf::resetHeightToGps()
@@ -271,14 +271,14 @@ void Ekf::resetHeightToGps()
 	ECL_INFO("reset height to GPS");
 	_information_events.flags.reset_hgt_to_gps = true;
 
-	resetVerticalPositionTo(-_gps_sample_delayed.hgt + getEkfGlobalOriginAltitude() - _gps_hgt_offset);
+	resetVerticalPositionTo(-(_gps_sample_delayed.hgt - getEkfGlobalOriginAltitude() - _gps_hgt_b_est.getBias()));
 
 	// the state variance is the same as the observation
 	P.uncorrelateCovarianceSetVariance<1>(9, getGpsHeightVariance());
 
-	_baro_hgt_offset -= _state_reset_status.posD_change;
-	_rng_hgt_offset -= _state_reset_status.posD_change;
-	_ev_hgt_offset -= _state_reset_status.posD_change;
+	_baro_b_est.setBias(_baro_b_est.getBias() - _state_reset_status.posD_change);
+	_rng_hgt_b_est.setBias(_rng_hgt_b_est.getBias() - _state_reset_status.posD_change);
+	_ev_hgt_b_est.setBias(_ev_hgt_b_est.getBias() + _state_reset_status.posD_change);
 
 	_aid_src_gnss_pos.time_last_fuse[2] = _time_last_imu;
 }
@@ -299,14 +299,14 @@ void Ekf::resetHeightToRng()
 	}
 
 	// update the state and associated variance
-	resetVerticalPositionTo(-dist_bottom - _rng_hgt_offset);
+	resetVerticalPositionTo(-(dist_bottom - _rng_hgt_b_est.getBias()));
 
 	// the state variance is the same as the observation
 	P.uncorrelateCovarianceSetVariance<1>(9, sq(_params.range_noise));
 
-	_gps_hgt_offset = _state_reset_status.posD_change;
-	_baro_hgt_offset -= _state_reset_status.posD_change;
-	_ev_hgt_offset -= _state_reset_status.posD_change;
+	_baro_b_est.setBias(_baro_b_est.getBias() - _state_reset_status.posD_change);
+	_gps_hgt_b_est.setBias(_gps_hgt_b_est.getBias() - _state_reset_status.posD_change);
+	_ev_hgt_b_est.setBias(_ev_hgt_b_est.getBias() + _state_reset_status.posD_change);
 }
 
 void Ekf::resetHeightToEv()
@@ -314,14 +314,14 @@ void Ekf::resetHeightToEv()
 	ECL_INFO("reset height to EV");
 	_information_events.flags.reset_hgt_to_ev = true;
 
-	resetVerticalPositionTo(_ev_sample_delayed.pos(2) - _ev_hgt_offset);
+	resetVerticalPositionTo(_ev_sample_delayed.pos(2) - _ev_hgt_b_est.getBias());
 
 	// the state variance is the same as the observation
 	P.uncorrelateCovarianceSetVariance<1>(9, fmaxf(_ev_sample_delayed.posVar(2), sq(0.01f)));
 
-	_gps_hgt_offset = _state_reset_status.posD_change;
-	_baro_hgt_offset -= _state_reset_status.posD_change;
-	_rng_hgt_offset -= _state_reset_status.posD_change;
+	_baro_b_est.setBias(_baro_b_est.getBias() - _state_reset_status.posD_change);
+	_gps_hgt_b_est.setBias(_gps_hgt_b_est.getBias() - _state_reset_status.posD_change);
+	_rng_hgt_b_est.setBias(_rng_hgt_b_est.getBias() - _state_reset_status.posD_change);
 }
 
 void Ekf::resetVerticalVelocityToGps(const gpsSample &gps_sample_delayed)
@@ -759,10 +759,9 @@ bool Ekf::setEkfGlobalOrigin(const double latitude, const double longitude, cons
 
 			resetVerticalPositionTo(_gps_alt_ref - current_alt);
 
-			_baro_hgt_offset -= _state_reset_status.posD_change;
-
-			_rng_hgt_offset -= _state_reset_status.posD_change;
-			_ev_hgt_offset -= _state_reset_status.posD_change;
+			_baro_b_est.setBias(_baro_b_est.getBias() - _state_reset_status.posD_change);
+			_rng_hgt_b_est.setBias(_rng_hgt_b_est.getBias() - _state_reset_status.posD_change);
+			_ev_hgt_b_est.setBias(_ev_hgt_b_est.getBias() + _state_reset_status.posD_change);
 		}
 
 		return true;
@@ -1281,10 +1280,11 @@ void Ekf::startBaroHgtFusion()
 			resetHeightToBaro();
 
 		} else {
-			_baro_hgt_offset = _state.pos(2) + _baro_lpf.getState();
+			_baro_b_est.setBias(_state.pos(2) + _baro_lpf.getState());
 		}
 
 		_control_status.flags.baro_hgt = true;
+		_baro_b_est.setFusionActive();
 		ECL_INFO("starting baro height fusion");
 	}
 }
@@ -1297,6 +1297,7 @@ void Ekf::stopBaroHgtFusion()
 		}
 
 		_control_status.flags.baro_hgt = false;
+		_baro_b_est.setFusionInactive();
 		ECL_INFO("stopping baro height fusion");
 	}
 }
@@ -1304,16 +1305,21 @@ void Ekf::stopBaroHgtFusion()
 void Ekf::startGpsHgtFusion()
 {
 	if (!_control_status.flags.gps_hgt) {
+
 		if (_params.height_sensor_ref == HeightSensorRef::GPS) {
-			_gps_hgt_offset = 0.f;
+			_gps_hgt_b_est.reset();
 			_height_sensor_ref = HeightSensorRef::GPS;
 			resetHeightToGps();
 
 		} else {
-			_gps_hgt_offset = _state.pos(2) + _gps_sample_delayed.hgt - getEkfGlobalOriginAltitude();
+			_gps_hgt_b_est.setBias(_state.pos(2) + _gps_sample_delayed.hgt - getEkfGlobalOriginAltitude());
+
+			// Reset the timeout value here because the fusion isn't done at the same place and would immediately trigger a timeout
+			_aid_src_gnss_pos.time_last_fuse[2] = _time_last_imu;
 		}
 
 		_control_status.flags.gps_hgt = true;
+		_gps_hgt_b_est.setFusionActive();
 		ECL_INFO("starting GPS height fusion");
 	}
 }
@@ -1327,6 +1333,7 @@ void Ekf::stopGpsHgtFusion()
 		}
 
 		_control_status.flags.gps_hgt = false;
+		_gps_hgt_b_est.setFusionInactive();
 		ECL_INFO("stopping GPS height fusion");
 	}
 }
@@ -1334,19 +1341,19 @@ void Ekf::stopGpsHgtFusion()
 void Ekf::startRngHgtFusion()
 {
 	if (!_control_status.flags.rng_hgt) {
-		_control_status.flags.rng_hgt = true;
-
 		if (_params.height_sensor_ref == HeightSensorRef::RANGE) {
 			// Range finder is the primary height source, the ground is now the datum used
 			// to compute the local vertical position
-			_rng_hgt_offset = 0.f;
+			_rng_hgt_b_est.reset();
 			_height_sensor_ref = HeightSensorRef::RANGE;
 			resetHeightToRng();
 
 		} else {
-			_rng_hgt_offset = _state.pos(2) + _range_sensor.getDistBottom();
+			_rng_hgt_b_est.setBias(_state.pos(2) + _range_sensor.getDistBottom());
 		}
 
+		_control_status.flags.rng_hgt = true;
+		_rng_hgt_b_est.setFusionActive();
 		ECL_INFO("starting RNG height fusion");
 	}
 }
@@ -1359,6 +1366,7 @@ void Ekf::stopRngHgtFusion()
 		}
 
 		_control_status.flags.rng_hgt = false;
+		_rng_hgt_b_est.setFusionInactive();
 		ECL_INFO("stopping range height fusion");
 	}
 }
@@ -1366,17 +1374,17 @@ void Ekf::stopRngHgtFusion()
 void Ekf::startEvHgtFusion()
 {
 	if (!_control_status.flags.ev_hgt) {
-		_control_status.flags.ev_hgt = true;
-
 		if (_params.height_sensor_ref == HeightSensorRef::EV) {
-			_ev_hgt_offset = 0.f;
+			_rng_hgt_b_est.reset();
 			_height_sensor_ref = HeightSensorRef::EV;
 			resetHeightToEv();
 
 		} else {
-			_ev_hgt_offset = _state.pos(2) -_ev_sample_delayed.pos(2);
+			_ev_hgt_b_est.setBias(-_state.pos(2) + _ev_sample_delayed.pos(2));
 		}
 
+		_control_status.flags.ev_hgt = true;
+		_ev_hgt_b_est.setFusionActive();
 		ECL_INFO("starting EV height fusion");
 	}
 }
@@ -1389,6 +1397,7 @@ void Ekf::stopEvHgtFusion()
 		}
 
 		_control_status.flags.ev_hgt = false;
+		_ev_hgt_b_est.setFusionInactive();
 		ECL_INFO("stopping EV height fusion");
 	}
 }
@@ -1401,74 +1410,6 @@ float Ekf::getGpsHeightVariance()
 	const float upper_limit = fmaxf(1.5f * _params.pos_noaid_noise, lower_limit);
 	const float gps_alt_var = sq(math::constrain(_gps_sample_delayed.vacc, lower_limit, upper_limit));
 	return gps_alt_var;
-}
-
-void Ekf::updateBaroHgtBias(float height_ref, float height_ref_var)
-{
-	// Baro bias estimation using height reference sensor
-	if ((_params.height_sensor_ref != HeightSensorRef::BARO) && _control_status.flags.baro_hgt) {
-		_baro_b_est.setMaxStateNoise(_params.baro_noise);
-		_baro_b_est.setProcessNoiseStdDev(_params.baro_drift_rate);
-		_baro_b_est.predict(_dt_ekf_avg);
-
-		if (_baro_data_ready) {
-			float bias = -_aid_src_baro_hgt.observation - height_ref;
-			float bias_var = sq(_params.baro_noise) + height_ref_var;
-
-			_baro_b_est.fuseBias(bias, bias_var);
-		}
-	}
-}
-
-void Ekf::updateGpsHgtBias(float height_ref, float height_ref_var)
-{
-	if ((_params.height_sensor_ref != HeightSensorRef::GPS) && _control_status.flags.gps_hgt) {
-		_gps_hgt_b_est.setMaxStateNoise(getGpsHeightVariance());
-		_gps_hgt_b_est.setProcessNoiseStdDev(_params.baro_drift_rate); //TODO: update this
-		_gps_hgt_b_est.predict(_dt_ekf_avg);
-
-		if (_gps_data_ready) {
-			float bias = -_aid_src_gnss_pos.observation[2] - height_ref;
-			float bias_var = _aid_src_gnss_pos.observation_variance[2] + height_ref_var;
-
-			_gps_hgt_b_est.fuseBias(bias, bias_var);
-		}
-	}
-}
-
-void Ekf::updateRngHgtBias(float height_ref, float height_ref_var)
-{
-	if ((_params.height_sensor_ref != HeightSensorRef::RANGE) && _control_status.flags.rng_hgt) {
-		const float rng_noise = sqrtf(_aid_src_rng_hgt.observation_variance);
-		_rng_hgt_b_est.setMaxStateNoise(rng_noise);
-		_rng_hgt_b_est.setProcessNoiseStdDev(rng_noise); // TODO: fix
-		_rng_hgt_b_est.predict(_dt_ekf_avg);
-
-		if (_rng_data_ready) {
-			float bias = -_aid_src_rng_hgt.observation - height_ref;
-			float bias_var = _aid_src_rng_hgt.observation_variance + height_ref_var;
-
-			_rng_hgt_b_est.fuseBias(bias, bias_var);
-		}
-	}
-}
-
-void Ekf::updateEvHgtBias(float height_ref, float height_ref_var)
-{
-	if ((_params.height_sensor_ref != HeightSensorRef::EV) && _control_status.flags.ev_hgt) {
-		const float ev_var = _ev_sample_delayed.posVar(2);
-		const float ev_noise = sqrtf(ev_var);
-		_ev_hgt_b_est.setMaxStateNoise(ev_noise);
-		_ev_hgt_b_est.setProcessNoiseStdDev(ev_noise); // TODO: fix
-		_ev_hgt_b_est.predict(_dt_ekf_avg);
-
-		if (_ev_data_ready) {
-			float bias = (-_ev_sample_delayed.pos(2) - _ev_hgt_offset) - height_ref;
-			float bias_var = ev_var + height_ref_var;
-
-			_ev_hgt_b_est.fuseBias(bias, bias_var);
-		}
-	}
 }
 
 float Ekf::getRngHeightVariance() const

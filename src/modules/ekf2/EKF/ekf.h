@@ -47,6 +47,7 @@
 
 #include "EKFGSF_yaw.h"
 #include "bias_estimator.hpp"
+#include "height_bias_estimator.hpp"
 
 #include <uORB/topics/estimator_aid_source_1d.h>
 #include <uORB/topics/estimator_aid_source_2d.h>
@@ -539,12 +540,6 @@ private:
 	AlphaFilter<Vector3f> _mag_lpf{0.1f};	///< filtered magnetometer measurement for instant reset (Gauss)
 	AlphaFilter<float> _baro_lpf{0.1f};	///< filtered barometric height measurement (m)
 
-	HeightSensorRef _height_sensor_ref{HeightSensorRef::UNKNOWN};
-	float _baro_hgt_offset{0.0f};		///< baro height reading at the local NED origin (m)
-	float _gps_hgt_offset{0.0f};		///< GPS height reading at the local NED origin (m)
-	float _rng_hgt_offset{0.0f};		///< Range height reading at the local NED origin (m)
-	float _ev_hgt_offset{0.0f};		///< EV height reading at the local NED origin (m)
-
 	// Variables used to control activation of post takeoff functionality
 	float _last_on_ground_posD{0.0f};	///< last vertical position when the in_air status was false (m)
 	uint64_t _flt_mag_align_start_time{0};	///< time that inflight magnetic field alignment started (uSec)
@@ -925,11 +920,6 @@ private:
 	void startEvHgtFusion();
 	void stopEvHgtFusion();
 
-	void updateBaroHgtBias(float height, float height_var);
-	void updateGpsHgtBias(float height, float height_var);
-	void updateRngHgtBias(float height, float height_var);
-	void updateEvHgtBias(float height, float height_var);
-
 	void updateGroundEffect();
 
 	// return an estimation of the sensor altitude variance
@@ -1035,10 +1025,12 @@ private:
 	// yaw estimator instance
 	EKFGSF_yaw _yawEstimator{};
 
-	BiasEstimator _baro_b_est{};
-	BiasEstimator _gps_hgt_b_est{};
-	BiasEstimator _rng_hgt_b_est{};
-	BiasEstimator _ev_hgt_b_est{};
+	uint8_t _height_sensor_ref{HeightSensorRef::UNKNOWN};
+
+	HeightBiasEstimator _baro_b_est{HeightSensorRef::BARO, _height_sensor_ref};
+	HeightBiasEstimator _gps_hgt_b_est{HeightSensorRef::GPS, _height_sensor_ref};
+	HeightBiasEstimator _rng_hgt_b_est{HeightSensorRef::RANGE, _height_sensor_ref};
+	HeightBiasEstimator _ev_hgt_b_est{HeightSensorRef::EV, _height_sensor_ref};
 
 	int64_t _ekfgsf_yaw_reset_time{0};	///< timestamp of last emergency yaw reset (uSec)
 	uint8_t _ekfgsf_yaw_reset_count{0};	// number of times the yaw has been reset to the EKF-GSF estimate

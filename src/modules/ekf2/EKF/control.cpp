@@ -739,23 +739,12 @@ void Ekf::controlHeightFusion()
 
 	updateGroundEffect();
 
-	// Since the height sensor bias are not part of the main filter,
-	// save the current height estimate to update the bias estimators with data
-	// that doesn't contain the newest measurement.
-	const float height = -_state.pos(2);
-	const float height_var = P(9, 9);
-
 	controlBaroHeightFusion();
 	controlGpsHeightFusion();
 	controlRangeHeightFusion();
 	controlEvHeightFusion();
 
 	checkHeightSensorRefFallback();
-
-	updateBaroHgtBias(height, height_var);
-	updateGpsHgtBias(height, height_var);
-	updateRngHgtBias(height, height_var);
-	updateEvHgtBias(height, height_var);
 }
 
 void Ekf::checkHeightSensorRefFallback()
@@ -854,6 +843,8 @@ void Ekf::controlBaroHeightFusion()
 		return;
 	}
 
+	_baro_b_est.predict(_dt_ekf_avg);
+
 	if (_baro_data_ready) {
 		_baro_lpf.update(_baro_sample_delayed.hgt);
 		updateBaroHgt(_baro_sample_delayed, _aid_src_baro_hgt);
@@ -900,6 +891,8 @@ void Ekf::controlGpsHeightFusion()
 		return;
 	}
 
+	_gps_hgt_b_est.predict(_dt_ekf_avg);
+
 	if (_gps_data_ready) {
 		const bool continuing_conditions_passing = !_gps_intermittent && _gps_checks_passed && _NED_origin_initialised;
 		const bool starting_conditions_passing = continuing_conditions_passing;
@@ -940,6 +933,8 @@ void Ekf::controlRangeHeightFusion()
 		stopRngHgtFusion();
 		return;
 	}
+
+	_rng_hgt_b_est.predict(_dt_ekf_avg);
 
 	// If we are supposed to be using range finder data as the primary height sensor, have bad range measurements
 	// and are on the ground, then synthesise a measurement at the expected on ground value
@@ -1001,6 +996,8 @@ void Ekf::controlEvHeightFusion()
 		stopEvHgtFusion();
 		return;
 	}
+
+	_ev_hgt_b_est.predict(_dt_ekf_avg);
 
 	if (_ev_data_ready) {
 		const bool continuing_conditions_passing = true;
