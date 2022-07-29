@@ -1,3 +1,14 @@
+# Değişiklikler
+İlk olarak bu dosya ile birlikte [/sitl_gazebo](https://github.com/Zarqu0n/PX4-SITL_gazebo)  dosyasınıda kullanmanız gerekmektedir.                       
+Bu dosyada plane_cam modeli geliştirilmiş, eksik dosyalar giderilmiş , kamera ros ve qgc ile bağlanmıştır.   
+
+**/src kalsöründe server-client , ros-kamera bağlantısı, MAVSDK scriptleri eklendi.                                               
+**/launch konumundaki dosyalar uygun portlar ile bağlanarak qgc ve plane_cam modeli ile çalışması sağlandı.                                   
+**connect.sh bashi ile qcg, mavros,gazebo bağlantısı sağlandı.                                              
+**jinja2.exceptions.TemplateNotFound: models/plane_cam/plane_cam.sdf.jinja                                   
+multi_uav_mavros_sitl.launch dosyasının plane_cam dosyası ile çalışamsı hatası                                     
+plane_cam.sdf.jinja dosyaıs eklenerek çözüldü                             
+                
 # PX4 Drone Autopilot
 
 [![Releases](https://img.shields.io/github/release/PX4/PX4-Autopilot.svg)](https://github.com/PX4/PX4-Autopilot/releases) [![DOI](https://zenodo.org/badge/22634/PX4/PX4-Autopilot.svg)](https://zenodo.org/badge/latestdoi/22634/PX4/PX4-Autopilot)
