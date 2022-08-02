@@ -7,7 +7,15 @@ Bu dosyada plane_cam modeli geliştirilmiş, eksik dosyalar giderilmiş , kamera
 **connect.sh bashi ile qcg, mavros,gazebo bağlantısı sağlandı.                                              
 **jinja2.exceptions.TemplateNotFound: models/plane_cam/plane_cam.sdf.jinja                                   
 multi_uav_mavros_sitl.launch dosyasının plane_cam dosyası ile çalışamsı hatası                                     
-plane_cam.sdf.jinja dosyaıs eklenerek çözüldü              
+plane_cam.sdf.jinja dosyaıs eklenerek çözüldü    
+v2
+--Yeni dünya eklendi.
+--Çoklu iha için bash script eklendi
+--ui python scriptinde gyro kodlaması yapıldı
+--server, gyro için teta,beta ve frame yolluyor artık
+
+
+
 # PX4 Drone Autopilot
 
 [![Releases](https://img.shields.io/github/release/PX4/PX4-Autopilot.svg)](https://github.com/PX4/PX4-Autopilot/releases) [![DOI](https://zenodo.org/badge/22634/PX4/PX4-Autopilot.svg)](https://zenodo.org/badge/latestdoi/22634/PX4/PX4-Autopilot)
