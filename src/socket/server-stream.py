@@ -1,7 +1,3 @@
-# Welcome to PyShine
-
-# This code is for the server
-# Lets import the libraries
 import socket, cv2, pickle, struct, imutils
 
 # Socket Create
@@ -32,7 +28,6 @@ while True:
             a = pickle.dumps(frame)
             message = struct.pack("Q", len(a)) + a
             client_socket.sendall(message)
-
             cv2.imshow('TRANSMITTING VIDEO', frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):

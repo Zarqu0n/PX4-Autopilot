@@ -7,7 +7,7 @@ from sensor_msgs.msg import Image,Imu
 from cv_bridge import CvBridge, CvBridgeError
 import sys
 import socket, cv2, pickle, struct, imutils
-import math
+
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 host_name = socket.gethostname()
@@ -24,22 +24,13 @@ print("LISTENING AT:", socket_address)
 bridge = CvBridge()
 client_socket, addr = server_socket.accept()
 print('GOT CONNECTION FROM:', addr)
-
-
-def callback(Imu_data):
-  global teta
-  global beta
-  teta = math.pi/2*Imu_data.angular_velocity.y
-  beta = -math.pi/2*Imu_data.angular_velocity.z
-
 def func(ros_goruntu):
   global bridge
   try:
 
       cv_goruntu = bridge.imgmsg_to_cv2(ros_goruntu, "bgr8")
       cv_goruntu = imutils.resize(cv_goruntu, width=320)
-      message=[cv_goruntu,teta,beta]
-      a = pickle.dumps(message)
+      a = pickle.dumps(cv_goruntu)
       message = struct.pack("Q", len(a)) + a
       client_socket.sendall(message)
 
@@ -56,8 +47,8 @@ def main(args):
 
   rospy.init_node('kamera', anonymous=True)
 
-  rospy.Subscriber("/plane_cam0/usb_cam/camera/image_raw",Image,func)
-  rospy.Subscriber("/uav0/mavros/imu/data",Imu,callback)
+  rospy.Subscriber("/plane_cam/usb_cam/camera/image_raw",Image,func)
+
   try:
 
     rospy.spin()

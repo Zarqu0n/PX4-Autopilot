@@ -18,13 +18,14 @@ while True:
 		packed_msg_size = data[:payload_size]
 		data = data[payload_size:]
 		msg_size = struct.unpack("Q",packed_msg_size)[0]
-		
+
 		while len(data) < msg_size:
 			data += client_socket.recv(4*1024)
 		frame_data = data[:msg_size]
 		data  = data[msg_size:]
 		frame = pickle.loads(frame_data)
-		cv2.imshow("RECEIVING VIDEO",frame)
+		b = cv2.resize(frame,(640,480),fx=0,fy=0, interpolation = cv2.INTER_CUBIC)
+		cv2.imshow("RECEIVING VIDEO",b)
 		key = cv2.waitKey(1) & 0xFF
 		if key  == ord('q'):
 			break
