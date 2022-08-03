@@ -657,14 +657,14 @@ void Ekf::getEvVelPosInnovRatio(float &hvel, float &vvel, float &hpos, float &vp
 
 void Ekf::getAuxVelInnov(float aux_vel_innov[2]) const
 {
-	aux_vel_innov[0] = _aux_vel_innov(0);
-	aux_vel_innov[1] = _aux_vel_innov(1);
+	aux_vel_innov[0] = _aid_src_aux_vel.innovation[0];
+	aux_vel_innov[1] = _aid_src_aux_vel.innovation[1];
 }
 
 void Ekf::getAuxVelInnovVar(float aux_vel_innov_var[2]) const
 {
-	aux_vel_innov_var[0] = _aux_vel_innov_var(0);
-	aux_vel_innov_var[1] = _aux_vel_innov_var(1);
+	aux_vel_innov_var[0] = _aid_src_aux_vel.innovation_variance[0];
+	aux_vel_innov_var[1] = _aid_src_aux_vel.innovation_variance[1];
 }
 
 // get the state vector at the delayed time horizon
@@ -931,7 +931,17 @@ void Ekf::get_innovation_test_status(uint16_t &status, float &mag, float &vel, f
 	status = _innov_check_fail_status.value;
 
 	// return the largest magnetometer innovation test ratio
-	mag = sqrtf(math::max(_yaw_test_ratio, _mag_test_ratio.max()));
+	if (_control_status.flags.mag_hdg) {
+		mag = sqrtf(_aid_src_mag_heading.test_ratio);
+
+	} else if (_control_status.flags.mag_3D) {
+		mag = sqrtf(Vector3f(_aid_src_mag.test_ratio).max());
+
+	} else if (_control_status.flags.gps_yaw) {
+		mag = sqrtf(_aid_src_gnss_yaw.test_ratio);
+	} else {
+		mag = NAN;
+	}
 
 	// return the largest velocity and position innovation test ratio
 	vel = NAN;
@@ -1002,9 +1012,23 @@ void Ekf::get_ekf_soln_status(uint16_t *status) const
 	soln_status.flags.const_pos_mode = !soln_status.flags.velocity_horiz;
 	soln_status.flags.pred_pos_horiz_rel = soln_status.flags.pos_horiz_rel;
 	soln_status.flags.pred_pos_horiz_abs = soln_status.flags.pos_horiz_abs;
+
+	bool mag_innov_good = true;
+
+	if (_control_status.flags.mag_hdg) {
+		if (_aid_src_mag_heading.test_ratio < 1.f) {
+			mag_innov_good = false;
+		}
+
+	} else if (_control_status.flags.mag_3D) {
+		if (Vector3f(_aid_src_mag.test_ratio).max() < 1.f) {
+			mag_innov_good = false;
+		}
+	}
+
 	const bool gps_vel_innov_bad = Vector3f(_aid_src_gnss_vel.test_ratio).max() > 1.f;
 	const bool gps_pos_innov_bad = Vector2f(_aid_src_gnss_pos.test_ratio).max() > 1.f;
-	const bool mag_innov_good = (_mag_test_ratio.max() < 1.0f) && (_yaw_test_ratio < 1.0f);
+
 	soln_status.flags.gps_glitch = (gps_vel_innov_bad || gps_pos_innov_bad) && mag_innov_good;
 	soln_status.flags.accel_error = _fault_status.flags.bad_acc_vertical;
 	*status = soln_status.value;
@@ -1260,10 +1284,6 @@ void Ekf::stopMag3DFusion()
 		_control_status.flags.mag_3D = false;
 		_control_status.flags.mag_dec = false;
 
-		_mag_innov.zero();
-		_mag_innov_var.zero();
-		_mag_test_ratio.zero();
-
 		_fault_status.flags.bad_mag_x = false;
 		_fault_status.flags.bad_mag_y = false;
 		_fault_status.flags.bad_mag_z = false;
@@ -1278,8 +1298,6 @@ void Ekf::stopMagHdgFusion()
 		_control_status.flags.mag_hdg = false;
 
 		_fault_status.flags.bad_hdg = false;
-
-		_yaw_test_ratio = 0.f;
 	}
 }
 
@@ -1297,8 +1315,6 @@ void Ekf::startMag3DFusion()
 	if (!_control_status.flags.mag_3D) {
 
 		stopMagHdgFusion();
-
-		_yaw_test_ratio = 0.0f;
 
 		zeroMagCov();
 		loadMagCovData();
@@ -1679,6 +1695,7 @@ void Ekf::stopGpsYawFusion()
 	if (_control_status.flags.gps_yaw) {
 		ECL_INFO("stopping GPS yaw fusion");
 		_control_status.flags.gps_yaw = false;
+		resetEstimatorAidStatus(_aid_src_gnss_yaw);
 	}
 }
 
@@ -1744,9 +1761,9 @@ void Ekf::stopEvYawFusion()
 
 void Ekf::stopAuxVelFusion()
 {
-	_aux_vel_innov.setZero();
-	_aux_vel_innov_var.setZero();
-	_aux_vel_test_ratio.setZero();
+	ECL_INFO("stopping aux vel fusion");
+	//_control_status.flags.aux_vel = false;
+	resetEstimatorAidStatus(_aid_src_aux_vel);
 }
 
 void Ekf::stopFlowFusion()

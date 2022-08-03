@@ -650,10 +650,22 @@ void EKF2::PublishAidSourceStatus(const hrt_abstime &timestamp)
 	// fake position
 	PublishAidSourceStatus(_ekf.aid_src_fake_pos(), _status_fake_pos_pub_last, _estimator_aid_src_fake_pos_pub);
 
-	// GNSS velocity & position
+	// EV yaw
+	PublishAidSourceStatus(_ekf.aid_src_ev_yaw(), _status_ev_yaw_pub_last, _estimator_aid_src_ev_yaw_pub);
+
+	// GNSS yaw/velocity/position
+	PublishAidSourceStatus(_ekf.aid_src_gnss_yaw(), _status_gnss_yaw_pub_last, _estimator_aid_src_gnss_yaw_pub);
 	PublishAidSourceStatus(_ekf.aid_src_gnss_vel(), _status_gnss_vel_pub_last, _estimator_aid_src_gnss_vel_pub);
 	PublishAidSourceStatus(_ekf.aid_src_gnss_pos(), _status_gnss_pos_pub_last, _estimator_aid_src_gnss_pos_pub);
 
+	// mag heading
+	PublishAidSourceStatus(_ekf.aid_src_mag_heading(), _status_mag_heading_pub_last, _estimator_aid_src_mag_heading_pub);
+
+	// mag 3d
+	PublishAidSourceStatus(_ekf.aid_src_mag(), _status_mag_pub_last, _estimator_aid_src_mag_pub);
+
+	// aux velocity
+	PublishAidSourceStatus(_ekf.aid_src_aux_vel(), _status_aux_vel_pub_last, _estimator_aid_src_aux_vel_pub);
 }
 
 void EKF2::PublishAttitude(const hrt_abstime &timestamp)
@@ -1368,9 +1380,6 @@ void EKF2::PublishStatusFlags(const hrt_abstime &timestamp)
 		status_flags.reject_ver_vel                  = _ekf.innov_check_fail_status_flags().reject_ver_vel;
 		status_flags.reject_hor_pos                  = _ekf.innov_check_fail_status_flags().reject_hor_pos;
 		status_flags.reject_ver_pos                  = _ekf.innov_check_fail_status_flags().reject_ver_pos;
-		status_flags.reject_mag_x                    = _ekf.innov_check_fail_status_flags().reject_mag_x;
-		status_flags.reject_mag_y                    = _ekf.innov_check_fail_status_flags().reject_mag_y;
-		status_flags.reject_mag_z                    = _ekf.innov_check_fail_status_flags().reject_mag_z;
 		status_flags.reject_yaw                      = _ekf.innov_check_fail_status_flags().reject_yaw;
 		status_flags.reject_airspeed                 = _ekf.innov_check_fail_status_flags().reject_airspeed;
 		status_flags.reject_sideslip                 = _ekf.innov_check_fail_status_flags().reject_sideslip;
@@ -1557,8 +1566,8 @@ void EKF2::UpdateAuxVelSample(ekf2_timestamps_s &ekf2_timestamps)
 			// velocity of vehicle relative to target has opposite sign to target relative to vehicle
 			auxVelSample auxvel_sample{
 				.time_us = landing_target_pose.timestamp,
-				.vel = Vector3f{-landing_target_pose.vx_rel, -landing_target_pose.vy_rel, 0.0f},
-				.velVar = Vector3f{landing_target_pose.cov_vx_rel, landing_target_pose.cov_vy_rel, 0.0f},
+				.vel = Vector3f{-landing_target_pose.vx_rel, -landing_target_pose.vy_rel, NAN},
+				.velVar = Vector3f{landing_target_pose.cov_vx_rel, landing_target_pose.cov_vy_rel, NAN},
 			};
 			_ekf.setAuxVelData(auxvel_sample);
 		}
@@ -2240,7 +2249,7 @@ int EKF2::print_usage(const char *reason)
 ### Description
 Attitude and position estimator using an Extended Kalman Filter. It is used for Multirotors and Fixed-Wing.
 
-The documentation can be found on the [ECL/EKF Overview & Tuning](https://docs.px4.io/master/en/advanced_config/tuning_the_ecl_ekf.html) page.
+The documentation can be found on the [ECL/EKF Overview & Tuning](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf.html) page.
 
 ekf2 can be started in replay mode (`-r`): in this mode, it does not access the system time, but only uses the
 timestamps from the sensor topics.

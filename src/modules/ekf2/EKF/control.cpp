@@ -361,21 +361,41 @@ void Ekf::controlExternalVisionFusion()
 		}
 
 		// determine if we should use the yaw observation
-		if (_control_status.flags.ev_yaw) {
-			if (reset && _control_status_prev.flags.ev_yaw) {
-				resetYawToEv();
+		resetEstimatorAidStatus(_aid_src_ev_yaw);
+		const float measured_hdg = shouldUse321RotationSequence(_R_to_earth) ? getEuler321Yaw(_ev_sample_delayed.quat) : getEuler312Yaw(_ev_sample_delayed.quat);
+		const float ev_yaw_obs_var = fmaxf(_ev_sample_delayed.angVar, 1.e-4f);
+
+		if (PX4_ISFINITE(measured_hdg)) {
+			_aid_src_ev_yaw.timestamp_sample = _ev_sample_delayed.time_us;
+			_aid_src_ev_yaw.observation = measured_hdg;
+			_aid_src_ev_yaw.observation_variance = ev_yaw_obs_var;
+			_aid_src_ev_yaw.fusion_enabled = _control_status.flags.ev_yaw;
+
+			if (_control_status.flags.ev_yaw) {
+				if (reset && _control_status_prev.flags.ev_yaw) {
+					resetYawToEv();
+				}
+
+				const float innovation = wrap_pi(getEulerYaw(_R_to_earth) - measured_hdg);
+
+				fuseYaw(innovation, ev_yaw_obs_var, _aid_src_ev_yaw);
+
+			} else {
+				// populate estimator_aid_src_ev_yaw with delta heading innovations for logging
+				// use the change in yaw since the last measurement
+				const float measured_hdg_prev = shouldUse321RotationSequence(_R_to_earth) ? getEuler321Yaw(_ev_sample_delayed_prev.quat) : getEuler312Yaw(_ev_sample_delayed_prev.quat);
+
+				// calculate the change in yaw since the last measurement
+				const float ev_delta_yaw = wrap_pi(measured_hdg - measured_hdg_prev);
+
+				_aid_src_ev_yaw.innovation = wrap_pi(getEulerYaw(_R_to_earth) - _yaw_pred_prev - ev_delta_yaw);
 			}
-
-			float measured_hdg = shouldUse321RotationSequence(_R_to_earth) ? getEuler321Yaw(_ev_sample_delayed.quat) : getEuler312Yaw(_ev_sample_delayed.quat);
-
-			float innovation = wrap_pi(getEulerYaw(_R_to_earth) - measured_hdg);
-			float obs_var = fmaxf(_ev_sample_delayed.angVar, 1.e-4f);
-			fuseYaw(innovation, obs_var);
 		}
 
 		// record observation and estimate for use next time
 		_ev_sample_delayed_prev = _ev_sample_delayed;
 		_hpos_pred_prev = _state.pos.xy();
+		_yaw_pred_prev = getEulerYaw(_state.quat_nominal);
 
 	} else if ((_control_status.flags.ev_pos || _control_status.flags.ev_vel ||  _control_status.flags.ev_yaw)
 		   && isTimedOut(_time_last_ext_vision, (uint64_t)_params.reset_timeout_max)) {
@@ -584,7 +604,7 @@ void Ekf::controlGpsYawFusion(bool gps_checks_passing, bool gps_checks_failing)
 
 				fuseGpsYaw();
 
-				const bool is_fusion_failing = isTimedOut(_time_last_gps_yaw_fuse, _params.reset_timeout_max);
+				const bool is_fusion_failing = isTimedOut(_aid_src_gnss_yaw.time_last_fuse, _params.reset_timeout_max);
 
 				if (is_fusion_failing) {
 					if (_nb_gps_yaw_reset_available > 0) {
@@ -1111,18 +1131,13 @@ void Ekf::controlAuxVelFusion()
 
 		if (_auxvel_buffer->pop_first_older_than(_imu_sample_delayed.time_us, &auxvel_sample_delayed)) {
 
+			updateVelocityAidSrcStatus(auxvel_sample_delayed.time_us, auxvel_sample_delayed.vel, auxvel_sample_delayed.velVar, fmaxf(_params.auxvel_gate, 1.f), _aid_src_aux_vel);
+
 			if (isHorizontalAidingActive()) {
-
-				const float aux_vel_innov_gate = fmaxf(_params.auxvel_gate, 1.f);
-
-				_aux_vel_innov = _state.vel - auxvel_sample_delayed.vel;
-
-				fuseHorizontalVelocity(_aux_vel_innov, aux_vel_innov_gate, auxvel_sample_delayed.velVar,
-						       _aux_vel_innov_var, _aux_vel_test_ratio);
-
-				// Can be enabled after bit for this is added to EKF_AID_MASK
-				// fuseVerticalVelocity(_aux_vel_innov, aux_vel_innov_gate, auxvel_sample_delayed.velVar,
-				//		_aux_vel_innov_var, _aux_vel_test_ratio);
+				_aid_src_aux_vel.fusion_enabled[0] = PX4_ISFINITE(auxvel_sample_delayed.vel(0));
+				_aid_src_aux_vel.fusion_enabled[1] = PX4_ISFINITE(auxvel_sample_delayed.vel(1));
+				_aid_src_aux_vel.fusion_enabled[2] = PX4_ISFINITE(auxvel_sample_delayed.vel(2));
+				fuseVelocity(_aid_src_aux_vel);
 			}
 		}
 	}
