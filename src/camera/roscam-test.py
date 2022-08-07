@@ -63,8 +63,8 @@ def func(ros_goruntu):
 def main(args):
   rospy.init_node('kamera', anonymous=True)
 
-  rospy.Subscriber("/plane_cam/usb_cam/camera/image_raw",Image,func)  
-  rospy.Subscriber("/mavros/imu/data",Imu,callback)
+  rospy.Subscriber("/plane_cam0/usb_cam/camera/image_raw",Image,func)  
+  rospy.Subscriber("/uav0/mavros/imu/data",Imu,callback)
   try:
   
     rospy.spin()

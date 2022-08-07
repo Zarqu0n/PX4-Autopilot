@@ -33,18 +33,17 @@ def callback(Imu_data):
 
 def func(ros_goruntu):
   global bridge
-  data_socket = b""
+  data_socket = b"" 
   payload_size = struct.calcsize("Q")
   try:
 
       cv_goruntu = bridge.imgmsg_to_cv2(ros_goruntu, "bgr8")
-      cv_goruntu = imutils.resize(cv_goruntu, width=320)
+      cv_goruntu = imutils.resize(cv_goruntu, width=640)
       message=[cv_goruntu,teta,beta]
       a = pickle.dumps(message)
       message = struct.pack("Q", len(a)) + a
       client_socket.sendall(message)
-      
-
+            
       while len(data_socket) < payload_size:
         packet = client_socket.recv(416)  # 4K
         if not packet: break
@@ -60,7 +59,6 @@ def func(ros_goruntu):
       dataFromServer= pickle.loads(dataFromServer)
 
       print(dataFromServer)
-
   except CvBridgeError as e:
       print(e)
 
@@ -76,8 +74,8 @@ def main(args):
 
   rospy.init_node('kamera', anonymous=True)
 
-  rospy.Subscriber("/plane_cam/usb_cam/camera/image_raw",Image,func)
-  rospy.Subscriber("/mavros/imu/data",Imu,callback)
+  rospy.Subscriber("/plane_cam0/usb_cam/camera/image_raw",Image,func)
+  rospy.Subscriber("/uav0/mavros/imu/data",Imu,callback)
   try:
 
     rospy.spin()
@@ -89,4 +87,3 @@ def main(args):
 
 if __name__ == '__main__':
   main(sys.argv)
-  loop = asyncio.get_event_loop()

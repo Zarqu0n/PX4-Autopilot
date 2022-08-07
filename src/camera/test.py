@@ -8,10 +8,12 @@ from cv_bridge import CvBridge, CvBridgeError
 import sys
 import socket, cv2, pickle, struct, imutils
 import math
+from mavsdk import System
+import asyncio
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 host_name = socket.gethostname()
-host_ip = '192.168.43.50'
+host_ip = '192.168.190.129'
 print('HOST IP:', host_ip)
 port = 5050
 socket_address = (host_ip, port)
@@ -24,6 +26,8 @@ print("LISTENING AT:", socket_address)
 bridge = CvBridge()
 client_socket, addr = server_socket.accept()
 print('GOT CONNECTION FROM:', addr)
+
+manual_inputs = [0, 0, 0, 0]  # max throttle
 
 def callback(Imu_data):
   global teta
@@ -38,7 +42,7 @@ def func(ros_goruntu):
   try:
 
       cv_goruntu = bridge.imgmsg_to_cv2(ros_goruntu, "bgr8")
-      cv_goruntu = imutils.resize(cv_goruntu, width=320)
+      cv_goruntu = imutils.resize(cv_goruntu, width=640)
       message=[cv_goruntu,teta,beta]
       a = pickle.dumps(message)
       message = struct.pack("Q", len(a)) + a
@@ -69,15 +73,49 @@ def func(ros_goruntu):
   if cv2.waitKey(1) & 0xFF == ord('q'):
       rospy.signal_shutdown('kapatiliyor...')
 
-def main(args):
-  #dataFromServer = client_socket.recv(1024).decode()
-  #print(dataFromServer)
+async def main(args):
+
+  drone = System()
+  await drone.connect(system_address="udp://:14030")
+
+  # This waits till a mavlink based drone is connected
+  async for state in drone.core.connection_state():
+      if state.is_connected:
+          print(f"-- Connected to drone!")
+          break
+
+  # Checking if Global Position Estimate is ok
+  async for global_lock in drone.telemetry.health():
+      if global_lock.is_global_position_ok:
+          print("-- Global position state is ok")
+          break
+
+
+  # Arming the drone
+  print("-- Arming")
+  await drone.action.arm()
+
+  # Takeoff the vehicle
+  print("-- Taking off")
+  await drone.action.takeoff()
+  await asyncio.sleep(10)
+
+  async for state in drone.core.connection_state():
+        if state.is_connected:
+            print(f"-- Connected to drone!")
+            break
+
+    # Checking if Global Position Estimate is ok
+  async for global_lock in drone.telemetry.health():
+        if global_lock.is_global_position_ok:
+            print("-- Global position state is ok")
+            break
 
 
   rospy.init_node('kamera', anonymous=True)
 
-  rospy.Subscriber("/plane_cam/usb_cam/camera/image_raw",Image,func)
-  rospy.Subscriber("/mavros/imu/data",Imu,callback)
+  rospy.Subscriber("/plane_cam0/usb_cam/camera/image_raw",Image,func)
+  rospy.Subscriber("/uav0/mavros/imu/data",Imu,callback)
   try:
 
     rospy.spin()
@@ -88,5 +126,6 @@ def main(args):
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-  main(sys.argv)
+  #main(sys.argv)
   loop = asyncio.get_event_loop()
+  loop.run_until_complete(main(sys.argv))
