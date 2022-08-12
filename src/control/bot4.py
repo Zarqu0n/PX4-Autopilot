@@ -10,7 +10,7 @@ from mavsdk.offboard import (OffboardError, VelocityNedYaw)
 # Test set of manual inputs. Format: [roll, pitch, throttle, yaw]
 
 #--------------------Configuration--------------------
-x1,x2,y1,y2 = 0.002,0.002,0.004,0.004 #Geofence distance
+x1,x2,y1,y2 = 0.0015,0.0015,  0.003,0.003 #Geofence distance
 
 dist_diago_x = 0.0009#distance to geofence x
 dist_diago_y = 0.00125#distance to geofence y
@@ -37,7 +37,7 @@ async def print_flight_mode(drone):
 async def run():
 
     # Connect to the Simulation
-    drone = System()
+    drone = System(port=14034)
     await drone.connect(system_address="udp://:14034")
 
     # Wait for the drone to connect

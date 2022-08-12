@@ -10,7 +10,7 @@ from mavsdk.offboard import (OffboardError, VelocityNedYaw)
 # Test set of manual inputs. Format: [roll, pitch, throttle, yaw]
 
 #--------------------Configuration--------------------
-x1,x2,y1,y2 = 0.002,0.002,0.004,0.004 #Geofence distance
+x1,x2,y1,y2 = 0.0015,0.0015,  0.003,0.003 #Geofence distance
 
 dist_diago_x = 0.0009#distance to geofence x
 dist_diago_y = 0.00125#distance to geofence y
@@ -40,7 +40,7 @@ async def run():
     # Wait for the drone to connect
     print("Waiting for drone...")
     # Connect to the Simulation
-    drone = System()
+    drone = System( port=14032)
     await drone.connect(system_address="udp://:14032")
 
 
@@ -89,9 +89,10 @@ async def run():
     print("-- Arming")
     await drone.action.arm()
     print("-- Taking off")
+    await asyncio.sleep(5)
     await drone.action.takeoff()
     print("-- Setting initial setpoint")
-    await asyncio.sleep(5)
+    await asyncio.sleep(8)
     await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
 
 

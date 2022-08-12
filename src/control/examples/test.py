@@ -1,33 +1,79 @@
-import pygame
+#!/usr/bin/env python3
 
-pygame.init()
+# Warning: Only try this in simulation!
+#          The direct attitude interface is a low level interface to be used
+#          with caution. On real vehicles the thrust values are likely not
+#          adjusted properly and you need to close the loop using altitude.
 
-screen = pygame.display.set_mode((300, 200))
+import asyncio
 
-pressed = pygame.key.get_pressed()
+from mavsdk import System
+from mavsdk.offboard import (Attitude, OffboardError)
 
-clock = pygame.time.Clock()
-is_running = True
 
-while is_running:
+async def run():
+    """ Does Offboard control using attitude commands. """
 
-    for event in pygame.event.get():
+    drone = System()
+    await drone.connect(system_address="udp://:14030")
 
-        if event.type == pygame.QUIT:
-            is_running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                is_running = False
+    print("Waiting for drone to connect...")
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            print(f"-- Connected to drone!")
+            break
 
-    last_pressed = pressed
-    pressed = pygame.key.get_pressed()
+    print("Waiting for drone to have a global position estimate...")
+    async for health in drone.telemetry.health():
+        if health.is_global_position_ok and health.is_home_position_ok:
+            print("-- Global position estimate OK")
+            break
 
-    #changed = [idx for idx in range(len(pressed)) if pressed[idx] != last_pressed[idx]]
-    # or
-    changed = [idx for idx, (a, b) in enumerate(zip(last_pressed, pressed)) if a != b]
+    print("-- Arming")
+    await drone.action.arm()
+    await asyncio.sleep(2)
+    print("-- Taking off")
+    await drone.action.takeoff()
+    await asyncio.sleep(2)
+    print("-- Setting initial setpoint")
+    await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.0))
 
-    print(len(changed))
+    print("-- Starting offboard")
+    try:
+        await drone.offboard.start()
+    except OffboardError as error:
+        print(f"Starting offboard mode failed with error code: \
+              {error._result.result}")
+        print("-- Disarming")
+        await drone.action.disarm()
+        return
 
-    clock.tick(25)
+    print("-- Go up at 70% thrust")
+    await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.7))
+    await asyncio.sleep(10)
 
-pygame.quit()
+    print("-- Roll 30 at 60% thrust")
+    await drone.offboard.set_attitude(Attitude(30.0, 0.0, 0.0, 0.6))
+    await asyncio.sleep(10)
+
+    print("-- Roll -30 at 60% thrust")
+    await drone.offboard.set_attitude(Attitude(-30.0, 0.0, 0.0, 0.6))
+    await asyncio.sleep(10)
+
+    print("-- Hover at 60% thrust")
+    await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.6))
+    await asyncio.sleep(10)
+
+    print("-- Stopping offboard")
+    try:
+        await drone.offboard.stop()
+    except OffboardError as error:
+        print(f"Stopping offboard mode failed with error code: \
+              {error._result.result}")
+
+    await drone.action.land()
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run())

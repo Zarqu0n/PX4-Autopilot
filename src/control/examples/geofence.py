@@ -10,7 +10,7 @@ This example shows how to use the geofence plugin.
 Note: The behavior when your vehicle hits the geofence is NOT configured in this example. 
 
 """
-x1,x2,y1,y2 = 0.001,0.001,0.003,0.003
+x1,x2,y1,y2 = 0.0008,0.0008,  0.0020,0.0020
 
 async def run():
 
