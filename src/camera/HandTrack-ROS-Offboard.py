@@ -16,6 +16,7 @@ import HandTrackingModule as htm
 import asyncio
 import random
 from mavsdk import System
+from mavsdk.offboard import (OffboardError, PositionNedYaw,VelocityNedYaw,VelocityBodyYawspeed,Attitude)
 
 # Test set of manual inputs. Format: [roll, pitch, throttle, yaw]
 manual_inputs = [0, 0, 1, 0]  # max throttle
@@ -58,13 +59,8 @@ async def manual_controls():
     await asyncio.sleep(10)
 
     # set the manual control input after arming
-    await drone.manual_control.set_manual_control_input(
-        float(0), float(0), float(0.5), float(0)
-    )
+    await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.6))
 
-    # start manual control
-    print("-- Starting manual control")
-    await drone.manual_control.start_position_control()
     x = 0
     y = 0
     while True:
@@ -101,32 +97,20 @@ async def manual_controls():
         cv2.waitKey(1)
         # grabs a random input from the test list
         # WARNING - your simulation vehicle may crash if its unlucky enough
-
+        await drone.offboard.start()
         if x > 480:
-            input_index = [1, 0, 0.5, 0]
-            print("3")
+            await drone.offboard.set_attitude(Attitude(30.0, 0.0, 0.0, 0.6))
         elif x < 160:
-            input_index = [-1, 0, 0.5, -0]
+            await drone.offboard.set_attitude(Attitude(-30.0, 0.0, 0.0, 0.6))
         elif y > 350:
-            input_index = [0, -1, 0.5, 0]
+            await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.6))
         elif y < 130:
-            input_index = [0, 1, 0.5, 0]   
+            await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.6)) 
             print("2")       
         else:
-            input_index = [0, 0, 0.5, 0]
+            await drone.offboard.set_attitude(Attitude(0.0, 0.0, 0.0, 0.6))
             print("1")  
-        input_list = input_index
 
-        # get current state of roll axis (between -1 and 1)
-        roll = float(input_list[0])
-        # get current state of pitch axis (between -1 and 1)
-        pitch = float(input_list[1])
-        # get current state of throttle axis (between -1 and 1, but between 0 and 1 is expected)
-        throttle = float(input_list[2])
-        # get current state of yaw axis (between -1 and 1)
-        yaw = float(input_list[3])
-
-        await drone.manual_control.set_manual_control_input(roll, pitch, throttle, yaw)
 
         await asyncio.sleep(0.1)
 

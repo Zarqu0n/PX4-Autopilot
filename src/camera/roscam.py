@@ -29,8 +29,9 @@ def image_callback(img_msg):
     # Show the converted image
     show_image(cv_image)
 
+rospy.init_node("kamera")
 # Initalize a subscriber to the "/camera/rgb/image_raw" topic with the function "image_callback" as a callback
-sub_image = rospy.Subscriber("/plane_cam0/usb_cam/camera/image_raw", Image, image_callback)
+sub_image = rospy.Subscriber("/plane_cam/usb_cam/camera/image_raw", Image, image_callback)
 
 # Initialize an OpenCV Window named "Image Window"
 cv2.namedWindow("Image Window", 1)
